@@ -1,0 +1,564 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Filter Stack Lab</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Bricolage+Grotesque:wght@500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+  --bg:#eef2f6; --surface:#ffffff; --surface-2:#e4eaf0; --ink:#12202c; --muted:#53656f; --line:#cdd6de;
+  --accent:#d9480f; --accent-ink:#ffffff; --accent-soft:#ffe8dc;
+  --good:#1b7a3e; --bad:#b3261e; --good-ink:#ffffff;
+  --head:'Bricolage Grotesque','Avenir Next','Segoe UI',system-ui,sans-serif;
+  --body:'Atkinson Hyperlegible','Segoe UI',system-ui,-apple-system,Roboto,sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0c131a; --surface:#142029; --surface-2:#1c2b36; --ink:#e8eef3; --muted:#9db0bd; --line:#2a3a47;
+    --accent:#ff8a4c; --accent-ink:#1b0c03; --accent-soft:#3a2214;
+    --good:#6fd08c; --bad:#ff8a80; --good-ink:#06210f;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0c131a; --surface:#142029; --surface-2:#1c2b36; --ink:#e8eef3; --muted:#9db0bd; --line:#2a3a47;
+  --accent:#ff8a4c; --accent-ink:#1b0c03; --accent-soft:#3a2214;
+  --good:#6fd08c; --bad:#ff8a80; --good-ink:#06210f;
+}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*,*::before,*::after{box-sizing:inherit}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--body);font-size:16px;line-height:1.5}
+h1,h2,h3{font-family:var(--head);margin:0;line-height:1.15;letter-spacing:-.01em}
+h1{font-size:clamp(2rem,5.5vw,3rem);font-weight:700}
+h2{font-size:1.35rem;font-weight:700;margin-bottom:4px}
+p{margin:0}
+:focus-visible{outline:3px solid var(--accent);outline-offset:2px;border-radius:4px}
+
+.wrap{max-width:980px;margin:0 auto;padding:0 18px}
+.top{padding:28px 0 6px}
+.lede{max-width:64ch;margin-top:10px;color:var(--muted);font-size:1.05rem}
+.stack{display:grid;gap:18px;padding:16px 0 44px}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px;min-width:0}
+.sub{color:var(--muted);font-size:.95rem;margin-bottom:12px}
+.hint{color:var(--muted);font-size:.88rem;margin-top:8px}
+
+.limits{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin-top:6px}
+.limit{background:var(--surface-2);border-radius:10px;padding:10px 12px}
+.limit .k{font-size:.88rem;color:var(--muted)}
+.limit .v{font-family:var(--head);font-size:1.7rem;font-weight:700;line-height:1.15;font-variant-numeric:tabular-nums}
+.limit .u{font-size:.85rem;color:var(--muted)}
+
+.tbl{overflow-x:auto}
+.tbl.tall{max-height:420px;overflow-y:auto}
+table{border-collapse:collapse;width:100%;font-size:.95rem;font-variant-numeric:tabular-nums}
+th,td{padding:8px 10px;text-align:right;border-bottom:1px solid var(--line);white-space:nowrap}
+th:first-child,td:first-child{text-align:left}
+thead th{font-weight:700;color:var(--muted);font-size:.88rem}
+
+/* stage picker */
+.stagerow{display:grid;grid-template-columns:64px minmax(0,1fr);gap:10px;align-items:center;margin-top:10px}
+.stagerow:first-of-type{margin-top:0}
+.stagelab{font-weight:700}
+.opts{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px}
+.opt{font:inherit;color:var(--ink);background:var(--surface-2);border:2px solid var(--line);border-radius:10px;padding:6px 2px;cursor:pointer;min-height:58px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0;line-height:1.2}
+.opt b{font-family:var(--head);font-size:1.1rem}
+.opt span{font-size:.74rem;color:var(--muted)}
+.opt[aria-pressed="true"]{border-color:var(--accent);background:var(--accent-soft)}
+.opt[aria-pressed="true"] span{color:var(--ink)}
+
+/* instrument screens stay dark in both themes */
+.screen{background:#0c1822;border-radius:10px;overflow:hidden;border:1px solid #1d3345}
+#sim{display:block;width:100%;height:260px}
+.screen-bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:10px 12px;background:#10202d;border-top:1px solid #1d3345}
+.screen-bar .btn{background:#1a3042;color:#e8eef3;border-color:#2a4559}
+.screen-bar label{color:#9db0bd;font-size:.9rem}
+.screen-bar select{font:inherit;padding:6px 8px;background:#1a3042;color:#e8eef3;border:1px solid #2a4559;border-radius:8px}
+.simstats{margin-top:8px;font-size:.93rem;color:var(--muted);font-variant-numeric:tabular-nums}
+.compare{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:16px}
+.compare figure{margin:0}
+.compare figcaption{font-size:.93rem;margin-bottom:6px}
+.compare figcaption strong{font-family:var(--head);font-size:1.05rem;font-variant-numeric:tabular-nums}
+.compare canvas{display:block;width:100%;height:170px;border-radius:10px;border:1px solid #1d3345;background:#0c1822}
+@media (max-width:560px){.compare{grid-template-columns:minmax(0,1fr)}}
+
+/* dust bars */
+.flow{display:grid;gap:12px;margin-top:6px}
+.bar-row .lab{display:flex;justify-content:space-between;gap:10px;font-size:.95rem;margin-bottom:4px}
+.bar-row .lab strong{font-family:var(--head);font-size:1.1rem;font-variant-numeric:tabular-nums;white-space:nowrap}
+.track{position:relative;height:26px;background:var(--surface-2);border-radius:6px}
+.track.labgap{margin-top:24px}
+.fill{height:100%;border-radius:6px;background:var(--ink);min-width:3px;transition:width .35s ease}
+.fill.pass{background:var(--good)}
+.fill.fail{background:var(--bad)}
+.mark{position:absolute;top:-4px;bottom:-4px;width:0;border-left:3px dashed var(--accent)}
+.marklab{position:absolute;top:-22px;font-size:.8rem;font-weight:700;color:var(--accent);white-space:nowrap;line-height:1}
+
+.checks{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:10px;margin-top:20px}
+.check{background:var(--surface-2);border-radius:10px;padding:12px}
+.check .head{display:flex;justify-content:space-between;gap:8px;align-items:baseline}
+.check .big{font-family:var(--head);font-size:1.5rem;font-weight:700;font-variant-numeric:tabular-nums}
+.check .verdict{font-weight:700}
+.ok .verdict{color:var(--good)} .no .verdict{color:var(--bad)}
+.banner{margin-top:12px;padding:12px 14px;border-radius:8px;font-weight:700;background:var(--surface-2)}
+.banner.pass{background:var(--good);color:var(--good-ink)}
+
+.btn{font:inherit;font-weight:700;padding:9px 14px;border-radius:8px;border:1px solid var(--line);background:var(--surface-2);color:var(--ink);cursor:pointer;min-height:42px}
+.btn.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.btns{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:14px}
+.xbtn{background:none;border:0;color:var(--muted);cursor:pointer;font-size:1.1rem;padding:4px 8px;min-height:34px}
+.xbtn:hover{color:var(--bad)}
+.yes{color:var(--good);font-weight:700}.nope{color:var(--bad);font-weight:700}
+#toast{font-size:.9rem;color:var(--muted);min-height:1.4em}
+.key{border:2px dashed var(--accent)}
+tr.win td,tr.win th{background:var(--accent-soft)}
+@media (prefers-reduced-motion: reduce){.fill{transition:none}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <h1>Filter Stack Lab</h1>
+    <p class="lede">After an EVA, dust in the habitat spikes to 2,000 µg/m³. Stack filters in series, watch the dust hit them, then test whether your stack cleans the air enough without overloading the fan.</p>
+  </header>
+
+  <main class="stack">
+
+    <section class="panel" aria-labelledby="h-rules">
+      <h2 id="h-rules">The rules</h2>
+      <div class="limits">
+        <div class="limit"><div class="k">Starting dust</div><div class="v">2,000</div><div class="u">µg/m³ after an EVA</div></div>
+        <div class="limit"><div class="k">Dust limit</div><div class="v">under 100</div><div class="u">µg/m³ (24-hour average)</div></div>
+        <div class="limit"><div class="k">Fan limit</div><div class="v">150 Pa</div><div class="u">total resistance, at most</div></div>
+      </div>
+      <p class="hint">Air passes through Stage 1, then Stage 2, and so on. Each filter captures its percent of the dust that reaches it.</p>
+    </section>
+
+    <section class="panel" aria-labelledby="h-filters">
+      <h2 id="h-filters">The filters</h2>
+      <p class="sub">Sample values for this lab. Only HEPA's 99.97% minimum is a real standard.</p>
+      <div class="tbl">
+        <table>
+          <thead><tr><th>Filter</th><th>Capture of fine particles (%)</th><th>Airflow resistance (Pa)</th></tr></thead>
+          <tbody id="refBody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="panel" aria-labelledby="h-build">
+      <h2 id="h-build">Build your stack</h2>
+      <p class="sub">Pick a filter for each stage, or leave a stage empty. Your handout asks for up to two filters. Stages 3 and 4 are for exploring what happens when you keep adding more.</p>
+      <div id="stages"></div>
+    </section>
+
+    <section class="panel" aria-labelledby="h-watch">
+      <h2 id="h-watch">Watch the dust</h2>
+      <p class="sub">Dust flows left to right. Each particle that reaches a filter has a chance of being caught.</p>
+      <div class="screen">
+        <canvas id="sim" role="img" aria-label="Animation of dust particles flowing through the filters in your stack. Caught particles stick to the filters."></canvas>
+        <div class="screen-bar">
+          <button class="btn" id="playBtn" type="button">Pause</button>
+          <button class="btn" id="resetBtn" type="button">Reset</button>
+          <label for="mult">Speed</label>
+          <select id="mult"><option value="1">1x</option><option value="2" selected>2x</option><option value="5">5x</option></select>
+        </div>
+      </div>
+      <p class="simstats" id="simStats"></p>
+
+      <div class="compare">
+        <figure>
+          <figcaption>Habitat air after the EVA<br><strong>2,000 µg/m³</strong></figcaption>
+          <canvas id="cmpBefore" role="img" aria-label="Many dust particles representing the starting dust level"></canvas>
+        </figure>
+        <figure>
+          <figcaption>Air after your stack<br><strong id="afterNum"></strong></figcaption>
+          <canvas id="cmpAfter" role="img" aria-label="Dust particles remaining after your stack"></canvas>
+        </figure>
+      </div>
+      <p class="hint" id="dotNote"></p>
+    </section>
+
+    <section class="panel" aria-labelledby="h-test">
+      <h2 id="h-test">Test it</h2>
+      <p class="sub">How much dust is left after each filter? The dashed line is the 100 µg/m³ limit.</p>
+      <div class="flow" id="flow"></div>
+
+      <div class="checks">
+        <div class="check" id="chkDust"></div>
+        <div class="check" id="chkFan"></div>
+      </div>
+      <div class="banner" id="banner" aria-live="polite"></div>
+      <p class="hint" id="extraNote" hidden>This stack uses more than two filters. Part C of your handout asks for up to two.</p>
+      <div class="btns">
+        <button class="btn primary" id="addBtn" type="button">Add to my results table</button>
+        <span id="toast" aria-live="polite"></span>
+      </div>
+    </section>
+
+    <section class="panel" aria-labelledby="h-res">
+      <h2 id="h-res">My results table</h2>
+      <p class="sub">Copy the combinations you want onto Part C of your handout.</p>
+      <div class="tbl">
+        <table>
+          <thead><tr><th>Stage 1</th><th>Stage 2</th><th>Stage 3</th><th>Stage 4</th><th>Dust out (µg/m³)</th><th>Total resistance (Pa)</th><th>Meets BOTH limits?</th><th><span style="position:absolute;left:-9999px">Remove</span></th></tr></thead>
+          <tbody id="resBody"></tbody>
+        </table>
+      </div>
+      <p class="hint" id="resEmpty">Nothing saved yet. Build a stack, then choose "Add to my results table".</p>
+      <div class="btns"><button class="btn" id="clearBtn" type="button">Clear table</button></div>
+    </section>
+
+    <section class="panel key" id="teacher" hidden aria-labelledby="h-key">
+      <h2 id="h-key">Teacher answer key</h2>
+      <p class="sub">Every possible stack of one to four filters, sorted by total resistance. Order does not matter, because capture multiplies and resistance adds. Highlighted rows meet both limits. This section only appears when the page address ends in #teacher.</p>
+      <div class="tbl tall">
+        <table>
+          <thead><tr><th>Stack</th><th>Filters</th><th>Dust out (µg/m³)</th><th>Total resistance (Pa)</th><th>Meets BOTH?</th></tr></thead>
+          <tbody id="keyBody"></tbody>
+        </table>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<script>
+(function(){
+'use strict';
+var $ = function(id){ return document.getElementById(id); };
+
+var START = 2000, DUST_LIMIT = 100, FAN_LIMIT = 150, NSTAGES = 4;
+var FILTERS = [
+  {id:'A', name:'basic fiberglass panel', cap:20,    res:10},
+  {id:'B', name:'pleated, mid-grade',     cap:60,    res:40},
+  {id:'C', name:'pleated, high-grade',    cap:90,    res:90},
+  {id:'D', name:'HEPA',                   cap:99.97, res:250}
+];
+function byId(id){ for(var i=0;i<FILTERS.length;i++) if(FILTERS[i].id===id) return FILTERS[i]; return null; }
+
+var sel = ['none','none','none','none'];
+var rows = [];
+var KEY = 'filterstack.v2';
+
+function load(){
+  try{
+    var d = JSON.parse(localStorage.getItem(KEY) || 'null');
+    if(d && Array.isArray(d.rows)) rows = d.rows.filter(function(r){ return r && Array.isArray(r.s) && typeof r.dust==='number'; }).slice(0,12);
+  }catch(e){}
+}
+function save(){ try{ localStorage.setItem(KEY, JSON.stringify({rows:rows})); }catch(e){} }
+
+function evalStack(ids){
+  var used = ids.map(byId).filter(Boolean);
+  var dust = START, res = 0, steps = [];
+  used.forEach(function(f){ dust = dust*(1 - f.cap/100); res += f.res; steps.push(dust); });
+  return {used:used, steps:steps, dust:dust, res:res, okDust:dust < DUST_LIMIT, okFan:res <= FAN_LIMIT};
+}
+function fmtDust(x){
+  if(x >= 100) return Math.round(x).toLocaleString('en-US');
+  return String(parseFloat(x.toPrecision(3)));
+}
+function fmtPct(x){ return x>=10 ? x.toFixed(0) : x>=1 ? x.toFixed(1) : String(parseFloat(x.toPrecision(2))); }
+
+/* reference table */
+$('refBody').innerHTML = FILTERS.map(function(f){
+  return '<tr><td><strong>'+f.id+'</strong>: '+f.name+'</td><td>'+f.cap+'</td><td>'+f.res+'</td></tr>';
+}).join('');
+
+/* stage pickers */
+(function(){
+  var html = '';
+  for(var s=0;s<NSTAGES;s++){
+    html += '<div class="stagerow"><span class="stagelab">Stage '+(s+1)+'</span><div class="opts" role="group" aria-label="Stage '+(s+1)+' filter">';
+    html += '<button type="button" class="opt" data-s="'+s+'" data-id="none" aria-pressed="false"><b>None</b><span>empty</span></button>';
+    FILTERS.forEach(function(f){
+      html += '<button type="button" class="opt" data-s="'+s+'" data-id="'+f.id+'" aria-pressed="false" aria-label="Filter '+f.id+', '+f.cap+' percent capture, '+f.res+' pascals"><b>'+f.id+'</b><span>'+f.cap+'%</span><span>'+f.res+' Pa</span></button>';
+    });
+    html += '</div></div>';
+  }
+  $('stages').innerHTML = html;
+  $('stages').addEventListener('click', function(e){
+    var b = e.target.closest('[data-id]'); if(!b) return;
+    sel[+b.dataset.s] = b.dataset.id;
+    resetSim(); render();
+  });
+})();
+
+/* ---------- numbers panel ---------- */
+function bar(label, value, cls, first){
+  var w = Math.max(0.4, value/START*100);
+  var pos = DUST_LIMIT/START*100;
+  var mark = '<div class="mark" style="left:'+pos+'%"></div>' + (first ? '<div class="marklab" style="left:calc('+pos+'% + 6px)">Limit: 100</div>' : '');
+  return '<div class="bar-row"><div class="lab"><span>'+label+'</span><strong>'+fmtDust(value)+' µg/m³</strong></div><div class="track'+(first?' labgap':'')+'">'+mark+'<div class="fill '+cls+'" style="width:'+w+'%"></div></div></div>';
+}
+
+var cur = evalStack(sel);
+
+function render(){
+  Array.prototype.forEach.call($('stages').querySelectorAll('.opt'), function(b){
+    b.setAttribute('aria-pressed', String(sel[+b.dataset.s] === b.dataset.id));
+  });
+  var r = cur = evalStack(sel);
+
+  var html = bar('Habitat air after the EVA', START, '', true);
+  if(r.used.length === 0){
+    html += '<p class="hint">Pick a filter above to see how much dust it removes.</p>';
+  } else {
+    r.used.forEach(function(f,i){
+      var last = i === r.used.length-1;
+      html += bar('After Filter '+f.id+(r.used.length>1 ? ' (filter '+(i+1)+' of '+r.used.length+')' : ''), r.steps[i], last ? (r.okDust?'pass':'fail') : '', false);
+    });
+  }
+  $('flow').innerHTML = html;
+
+  $('chkDust').className = 'check ' + (r.okDust ? 'ok' : 'no');
+  $('chkDust').innerHTML = '<div class="head"><span>Dust out</span><span class="verdict">'+(r.okDust ? '✓ Under 100' : '✗ Not under 100')+'</span></div><div class="big">'+fmtDust(r.dust)+' µg/m³</div>';
+
+  var fanPct = Math.min(100, r.res/FAN_LIMIT*100);
+  $('chkFan').className = 'check ' + (r.okFan ? 'ok' : 'no');
+  $('chkFan').innerHTML = '<div class="head"><span>Total resistance</span><span class="verdict">'+(r.okFan ? '✓ Within fan limit' : '✗ Over fan limit')+'</span></div><div class="big">'+r.res+' Pa <span style="font-size:.9rem;font-weight:400;color:var(--muted)">of 150 Pa</span></div>' +
+    '<div class="track" style="margin-top:8px"><div class="fill '+(r.okFan?'pass':'fail')+'" style="width:'+fanPct+'%"></div></div>';
+
+  var b = $('banner');
+  if(r.okDust && r.okFan){ b.className = 'banner pass'; b.textContent = 'This stack meets BOTH limits.'; }
+  else if(r.okDust){ b.className = 'banner'; b.textContent = 'Clean enough, but the fan cannot push air through this stack.'; }
+  else if(r.okFan){ b.className = 'banner'; b.textContent = 'The fan can handle it, but there is still too much dust.'; }
+  else { b.className = 'banner'; b.textContent = 'Fails both limits.'; }
+  $('extraNote').hidden = r.used.length <= 2;
+
+  $('afterNum').textContent = fmtDust(r.dust) + ' µg/m³';
+  drawCompare();
+  renderStats();
+}
+
+/* ---------- results table ---------- */
+function renderRows(){
+  $('resBody').innerHTML = rows.map(function(r,i){
+    var ok = r.okDust && r.okFan;
+    var cells = '';
+    for(var k=0;k<NSTAGES;k++) cells += '<td>'+(r.s[k] && r.s[k]!=='none' ? r.s[k] : '–')+'</td>';
+    return '<tr>'+cells+'<td>'+fmtDust(r.dust)+'</td><td>'+r.res+'</td><td class="'+(ok?'yes':'nope')+'">'+(ok?'Yes':'No')+'</td><td><button class="xbtn" type="button" data-del="'+i+'" aria-label="Remove row '+(i+1)+'">×</button></td></tr>';
+  }).join('');
+  $('resEmpty').hidden = rows.length > 0;
+}
+var tt;
+function flash(m){ $('toast').textContent = m; clearTimeout(tt); tt = setTimeout(function(){ $('toast').textContent=''; }, 3500); }
+
+$('addBtn').addEventListener('click', function(){
+  if(cur.used.length === 0){ flash('Pick at least one filter first.'); return; }
+  if(rows.length >= 12){ flash('Table is full. Remove a row first.'); return; }
+  rows.push({s:sel.slice(), dust:cur.dust, res:cur.res, okDust:cur.okDust, okFan:cur.okFan});
+  save(); renderRows(); flash('Added.');
+});
+$('resBody').addEventListener('click', function(e){
+  var b = e.target.closest('[data-del]'); if(!b) return;
+  rows.splice(+b.dataset.del,1); save(); renderRows();
+});
+$('clearBtn').addEventListener('click', function(){ rows=[]; save(); renderRows(); });
+
+/* ---------- teacher key ---------- */
+function renderKey(){
+  var show = /teacher/i.test(location.hash);
+  $('teacher').hidden = !show;
+  if(!show) return;
+  var ids = FILTERS.map(function(f){ return f.id; }), list = [];
+  (function rec(start, c){
+    if(c.length){ var r = evalStack(c); list.push({name:c.join(' + '), n:c.length, dust:r.dust, res:r.res, ok:r.okDust && r.okFan}); }
+    if(c.length === NSTAGES) return;
+    for(var i=start;i<ids.length;i++){ c.push(ids[i]); rec(i,c); c.pop(); }
+  })(0, []);
+  list.sort(function(x,y){ return x.res - y.res || x.dust - y.dust; });
+  $('keyBody').innerHTML = list.map(function(x){
+    return '<tr class="'+(x.ok?'win':'')+'"><td>'+x.name+'</td><td>'+x.n+'</td><td>'+fmtDust(x.dust)+'</td><td>'+x.res+'</td><td class="'+(x.ok?'yes':'nope')+'">'+(x.ok?'Yes':'No')+'</td></tr>';
+  }).join('');
+}
+window.addEventListener('hashchange', renderKey);
+
+/* ---------- canvas helpers ---------- */
+function fitCanvas(c){
+  var rect = c.getBoundingClientRect(), d = window.devicePixelRatio || 1;
+  if(!rect.width) return null;
+  var w = Math.round(rect.width*d), h = Math.round(rect.height*d);
+  if(c.width !== w || c.height !== h){ c.width = w; c.height = h; }
+  var g = c.getContext('2d');
+  g.setTransform(d,0,0,d,0,0);
+  return {g:g, w:rect.width, h:rect.height};
+}
+var DUST = '#e0734a';
+
+/* ---------- before / after dots ---------- */
+var NDOTS = 240;
+var dots = (function(){
+  var seed = 12345, out = [];
+  function rnd(){ seed = (seed*1664525 + 1013904223) % 4294967296; return seed/4294967296; }
+  for(var i=0;i<NDOTS;i++) out.push({x:rnd(), y:rnd()});
+  return out;
+})();
+
+function drawDots(c, count){
+  var f = fitCanvas(c); if(!f) return;
+  var g = f.g, pad = 10;
+  g.clearRect(0,0,f.w,f.h);
+  g.fillStyle = '#0c1822'; g.fillRect(0,0,f.w,f.h);
+  g.fillStyle = DUST;
+  for(var i=0;i<count;i++){
+    g.beginPath();
+    g.arc(pad + dots[i].x*(f.w-2*pad), pad + dots[i].y*(f.h-2*pad), 3, 0, 6.2832);
+    g.fill();
+  }
+  if(count === 0){
+    g.fillStyle = '#8da4b5'; g.font = '14px ' + getComputedStyle(document.body).fontFamily;
+    g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillText(cur.dust < START*0.5/NDOTS ? 'Too few particles to draw' : 'No dust left', f.w/2, f.h/2);
+  }
+}
+function drawCompare(){
+  var after = Math.round(cur.dust/START*NDOTS);
+  drawDots($('cmpBefore'), NDOTS);
+  drawDots($('cmpAfter'), after);
+  $('dotNote').textContent = 'Each dot stands for about ' + Math.round(START/NDOTS) + ' µg/m³. ' + (after + ' of ' + NDOTS + ' dots remain.');
+}
+
+/* ---------- particle simulation ---------- */
+var sim = $('sim');
+var W = 0, H = 0, g = null;
+var parts = [], stuck = [], caught = [0,0,0,0], resolved = 0, through = 0, spawnAcc = 0, fanAng = 0;
+var running = true, mult = 2, xs = [];
+
+function sizeSim(){
+  var f = fitCanvas(sim);
+  if(!f) return;
+  g = f.g; W = f.w; H = f.h;
+}
+function resetSim(){ parts = []; stuck = []; caught = [0,0,0,0]; resolved = 0; through = 0; spawnAcc = 0; }
+function layout(){
+  var n = cur.used.length;
+  xs = cur.used.map(function(f,i){ return W*(0.2 + 0.55*(i+1)/(n+1)); });
+}
+function step(dt){
+  if(!W) return;
+  layout();
+  var exitX = W-64, v = 110;
+  spawnAcc += dt*55;
+  while(spawnAcc >= 1){
+    spawnAcc -= 1;
+    parts.push({x:-4, y:H*0.14 + Math.random()*H*0.72, k:0});
+  }
+  for(var i=parts.length-1;i>=0;i--){
+    var p = parts[i], x0 = p.x;
+    p.x += v*dt*(0.9 + Math.random()*0.2);
+    p.y += (Math.random()-0.5)*70*dt;
+    if(p.y < H*0.1) p.y = H*0.1;
+    if(p.y > H*0.9) p.y = H*0.9;
+    if(p.k < cur.used.length && x0 < xs[p.k] && p.x >= xs[p.k]){
+      if(Math.random()*100 < cur.used[p.k].cap){
+        stuck.push({x:xs[p.k] + (Math.random()-0.5)*12, y:p.y});
+        caught[p.k]++; resolved++;
+        if(stuck.length > 1500) stuck.shift();
+        parts.splice(i,1);
+        continue;
+      }
+      p.k++;
+    }
+    if(p.x >= exitX){ resolved++; through++; parts.splice(i,1); }
+  }
+}
+function drawSim(){
+  if(!W || !g) return;
+  layout();
+  g.clearRect(0,0,W,H);
+  g.fillStyle = '#0c1822'; g.fillRect(0,0,W,H);
+  g.fillStyle = '#122636'; g.fillRect(0,H*0.06,W-40,H*0.88);
+  var font = getComputedStyle(document.body).fontFamily;
+  var y0 = H*0.06, y1 = H*0.94, i;
+
+  g.fillStyle = '#8da4b5'; g.font = '13px '+font; g.textBaseline = 'top'; g.textAlign = 'left';
+  g.fillText('Dusty habitat air', 10, 8);
+
+  for(i=0;i<xs.length;i++){
+    var f = cur.used[i], x = xs[i];
+    g.fillStyle = 'rgba(143,227,214,'+(0.08 + f.cap/100*0.14)+')';
+    g.fillRect(x-9, y0, 18, y1-y0);
+    g.strokeStyle = '#8fe3d6'; g.lineWidth = 1.5 + f.cap/100*2.5;
+    g.beginPath();
+    var k = 0;
+    for(var y=y0; y<=y1; y+=10){ g.lineTo(x + (k%2 ? 6 : -6), y); k++; }
+    g.stroke();
+    g.fillStyle = '#e8eef3'; g.textAlign = 'center'; g.textBaseline = 'top';
+    g.font = 'bold 14px '+font;
+    g.fillText('Filter '+f.id, x, 8);
+    g.font = '12px '+font; g.fillStyle = '#8da4b5';
+    g.fillText('caught '+caught[i], x, H-20);
+  }
+  if(xs.length === 0){
+    g.fillStyle = '#8da4b5'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.font = '14px '+font;
+    g.fillText('No filters in the stack, so all the dust gets through', W*0.5, H*0.5);
+  }
+
+  g.fillStyle = DUST;
+  for(i=0;i<stuck.length;i++){ g.beginPath(); g.arc(stuck[i].x, stuck[i].y, 2.2, 0, 6.2832); g.fill(); }
+  for(i=0;i<parts.length;i++){ g.beginPath(); g.arc(parts[i].x, parts[i].y, 2.4, 0, 6.2832); g.fill(); }
+
+  // fan
+  var cx = W-20, cy = H/2, R = 15;
+  g.strokeStyle = '#5f7d92'; g.lineWidth = 2;
+  g.beginPath(); g.arc(cx,cy,R+3,0,6.2832); g.stroke();
+  g.fillStyle = '#8da4b5';
+  for(var b=0;b<4;b++){
+    var a = fanAng + b*Math.PI/2;
+    g.beginPath(); g.moveTo(cx,cy); g.arc(cx,cy,R,a,a+0.9); g.closePath(); g.fill();
+  }
+  g.textAlign = 'right'; g.textBaseline = 'top'; g.font = '13px '+font; g.fillStyle = '#8da4b5';
+  g.fillText('Air to habitat', W-44, 8);
+  g.textAlign = 'left';
+}
+function renderStats(){
+  var exp = cur.dust/START*100;
+  var meas = resolved ? (through/resolved*100) : null;
+  $('simStats').textContent = 'Particles checked: ' + resolved + '. Got through: ' + through + (meas===null ? '' : ' (' + fmtPct(meas) + '%)') + '. Expected to get through: ' + fmtPct(exp) + '%.';
+}
+
+var last = performance.now(), lastStats = 0;
+function loop(now){
+  var dt = Math.min(0.05, (now-last)/1000); last = now;
+  if(running){
+    var total = dt*mult, steps = Math.max(1, Math.ceil(total*60)), sdt = total/steps;
+    for(var i=0;i<steps;i++) step(sdt);
+    fanAng += dt*6;
+  }
+  drawSim();
+  if(running && now-lastStats > 250){ renderStats(); lastStats = now; }
+  requestAnimationFrame(loop);
+}
+
+$('playBtn').addEventListener('click', function(){
+  running = !running; $('playBtn').textContent = running ? 'Pause' : 'Play';
+});
+$('resetBtn').addEventListener('click', function(){ resetSim(); renderStats(); });
+$('mult').addEventListener('change', function(){ mult = +$('mult').value; });
+
+function onResize(){ sizeSim(); drawCompare(); }
+if('ResizeObserver' in window){
+  new ResizeObserver(onResize).observe(sim);
+  new ResizeObserver(drawCompare).observe($('cmpBefore'));
+} else { window.addEventListener('resize', onResize); }
+
+/* ---------- start ---------- */
+load();
+mult = +$('mult').value;
+try{
+  if(window.matchMedia('(prefers-reduced-motion: reduce)').matches){ running = false; $('playBtn').textContent = 'Play'; }
+}catch(e){}
+sizeSim();
+render();
+renderRows();
+renderKey();
+requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
